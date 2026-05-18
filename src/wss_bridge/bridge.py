@@ -87,12 +87,18 @@ async def _run_once(
         ping_timeout=20,
     ) as ws:
         log.info("WSS connected; spawning subprocess: %s", " ".join(cmd))
+        # asyncio's default StreamReader buffer is 64 KiB; a single MCP
+        # response can easily exceed that (e.g. a chrome_take_snapshot on
+        # a page like bankofamerica.com). When that happens the readline
+        # loop dies with "Separator is not found, and chunk exceed the
+        # limit" and the bridge kills the subprocess. Bump to 16 MiB.
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env if env is not None else os.environ.copy(),
+            limit=16 * 1024 * 1024,
         )
         try:
             done, pending = await asyncio.wait(
