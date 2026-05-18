@@ -1,0 +1,11 @@
+#!/bin/bash
+# Wrapper that runs wss-bridge under caffeinate so the Mac stays awake
+# while the bridge is alive. Read token from ~/.config/wss-bridge-mac.token.
+
+TOKEN=$(cat "$HOME/.config/wss-bridge-mac.token")
+exec /usr/bin/caffeinate -dimsu \
+    "$HOME/.local/bin/uv" --project "$HOME/prg/wss-bridge" run wss-bridge \
+        --wss-url wss://mcp.example.com/devices/mac \
+        --token "$TOKEN" \
+        --log-level INFO \
+        --cmd "$HOME/prg/imessage-mcp/.build/debug/imessage-mcp"
