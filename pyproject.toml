@@ -1,0 +1,35 @@
+# wss-bridge: a generic WebSocket-to-stdio bridge for MCP servers.
+#
+# Runs alongside any stdio MCP server on a device (Mac, laptop) and
+# dials outbound to an MCP gateway over WSS, pumping JSON-RPC frames
+# between the WebSocket and the subprocess's stdin/stdout.
+#
+# The bridge is MCP-unaware — it just shovels newline-delimited JSON.
+# Same binary works for any stdio MCP. See plans/mcp-over-wss.md in the
+# mcp-gateway repo for the architecture.
+
+[project]
+name = "wss-bridge"
+version = "0.1.0"
+description = "Generic WebSocket-to-stdio bridge for MCP servers behind NAT"
+requires-python = ">=3.11"
+authors = [{ name = "Peter Danenberg", email = "github@pcd.la" }]
+
+dependencies = [
+    "websockets>=14.0",
+]
+
+[project.scripts]
+wss-bridge = "wss_bridge.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+    "fastmcp>=3.3.1",
+]
