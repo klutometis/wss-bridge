@@ -13,7 +13,7 @@ name = "wss-bridge"
 version = "0.1.0"
 description = "Generic WebSocket-to-stdio bridge for MCP servers behind NAT"
 requires-python = ">=3.11"
-authors = [{ name = "Peter Danenberg", email = "github@pcd.la" }]
+authors = [{ name = "Peter Danenberg" }]
 
 dependencies = [
     "websockets>=14.0",
