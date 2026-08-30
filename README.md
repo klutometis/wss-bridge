@@ -86,8 +86,8 @@ To onboard a new device as a helper:
 3. Ensure the relevant MCP-server-side state is reachable (e.g. for
    chrome: a `chrome-personal` instance listening on
    `--remote-debugging-port=9223`).
-4. Add the host to `MCP_HOST_ROLES` in `~/etc/secrets/dot-env` and
-   push.
+4. Add the host to `MCP_HOST_ROLES` in `~/.dotfiles/secrets/dot-env`,
+   commit and push, then pull it on the new host.
 5. Enable the systemd user units for the helpers you want:
    `systemctl --user enable --now wss-bridge-tmux.service`,
    `systemctl --user enable --now wss-bridge-chrome.service`.
