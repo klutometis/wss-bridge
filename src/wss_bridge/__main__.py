@@ -23,7 +23,10 @@ import sys
 import tomllib
 from pathlib import Path
 
-from .bridge import run
+from .bridge import AuthRejected, run
+
+# EX_NOPERM (sysexits.h): the gateway refused the token.
+EXIT_AUTH_REJECTED = 77
 
 
 def _load_config(path: Path) -> dict:
@@ -51,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cmd", nargs=argparse.REMAINDER,
         help="Subprocess command + args (must come last; everything after is the command).",
+    )
+    parser.add_argument(
+        "--exit-on-auth-failure", action="store_true",
+        help="Exit with status 77 when the gateway refuses the token (HTTP 401/403) "
+             "instead of retrying every minute; for callers that can fetch a new one.",
     )
     parser.add_argument(
         "--log-level", default=os.environ.get("WSS_BRIDGE_LOG_LEVEL", "INFO"),
@@ -87,9 +95,12 @@ def main(argv: list[str] | None = None) -> int:
 
     log.info("starting bridge: wss=%s cmd=%s", wss_url, " ".join(cmd))
     try:
-        asyncio.run(run(wss_url, token, cmd, env=env))
+        asyncio.run(run(wss_url, token, cmd, env=env,
+                        exit_on_auth_failure=args.exit_on_auth_failure))
     except KeyboardInterrupt:
         return 130
+    except AuthRejected:
+        return EXIT_AUTH_REJECTED
     return 0
 
 

@@ -128,6 +128,14 @@ async def _run_once(
             log.info("subprocess exited with code %s", proc.returncode)
 
 
+class AuthRejected(Exception):
+    """The gateway refused the token (HTTP 401/403); see run(exit_on_auth_failure)."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__(f"token rejected (HTTP {status})")
+        self.status = status
+
+
 async def run(
     wss_url: str,
     token: str,
@@ -135,8 +143,15 @@ async def run(
     env: dict[str, str] | None = None,
     initial_backoff: float = 1.0,
     max_backoff: float = 60.0,
+    exit_on_auth_failure: bool = False,
 ) -> None:
-    """Main loop: reconnect ruthlessly with exponential backoff."""
+    """Main loop: reconnect ruthlessly with exponential backoff.
+
+    With ``exit_on_auth_failure``, an HTTP 401 or 403 on the upgrade raises
+    AuthRejected instead of retrying: the token was refused (revoked,
+    expired, for another gateway) and only a new one will help, which is
+    the caller's job (the tinker.dog installer asks for approval again).
+    """
     backoff = initial_backoff
     while True:
         try:
@@ -148,6 +163,9 @@ async def run(
             log.info("KeyboardInterrupt; exiting")
             return
         except websockets.exceptions.InvalidStatus as e:
+            if exit_on_auth_failure and e.response.status_code in (401, 403):
+                log.error("WSS rejected the token (HTTP %s); exiting", e.response.status_code)
+                raise AuthRejected(e.response.status_code) from e
             # Auth failed or path wrong — terminal, but we still loop
             # in case the gateway is briefly misconfigured. Long sleep.
             log.error(
