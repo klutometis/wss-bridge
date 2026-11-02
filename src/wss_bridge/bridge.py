@@ -85,6 +85,9 @@ async def _run_once(
         additional_headers=extra_headers,
         ping_interval=20,
         ping_timeout=20,
+        # How long to wait for the gateway to answer our close. The default
+        # (10 s) is what Ctrl-C costs when the network has just gone away.
+        close_timeout=2,
     ) as ws:
         log.info("WSS connected; spawning subprocess: %s", " ".join(cmd))
         # asyncio's default StreamReader buffer is 64 KiB; a single MCP
@@ -100,22 +103,23 @@ async def _run_once(
             env=env if env is not None else os.environ.copy(),
             limit=16 * 1024 * 1024,
         )
+        tasks = {
+            asyncio.create_task(_pump_stdout_to_ws(proc, ws), name="stdout->ws"),
+            asyncio.create_task(_pump_ws_to_stdin(ws, proc), name="ws->stdin"),
+            asyncio.create_task(_pump_stderr(proc), name="stderr->log"),
+        }
         try:
-            done, pending = await asyncio.wait(
-                {
-                    asyncio.create_task(_pump_stdout_to_ws(proc, ws), name="stdout->ws"),
-                    asyncio.create_task(_pump_ws_to_stdin(ws, proc), name="ws->stdin"),
-                    asyncio.create_task(_pump_stderr(proc), name="stderr->log"),
-                },
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
-                if task.exception():
+                if not task.cancelled() and task.exception():
                     log.warning("pump task %s exited with %s", task.get_name(), task.exception())
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
         finally:
+            # However we got here (a pump ended, Ctrl-C cancelled us), no
+            # pump outlives this cycle: an orphan would die later of the
+            # closed socket and print "Task exception was never retrieved".
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             if proc.returncode is None:
                 log.info("terminating subprocess pid=%s", proc.pid)
                 try:
