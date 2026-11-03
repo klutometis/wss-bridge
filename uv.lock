@@ -1547,9 +1547,10 @@ wheels = [
 
 [[package]]
 name = "wss-bridge"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "truststore" },
     { name = "websockets" },
 ]
 
@@ -1560,7 +1561,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "websockets", specifier = ">=14.0" }]
+requires-dist = [
+    { name = "truststore", specifier = ">=0.10" },
+    { name = "websockets", specifier = ">=14.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

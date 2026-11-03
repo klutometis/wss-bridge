@@ -10,13 +10,16 @@
 
 [project]
 name = "wss-bridge"
-version = "0.2.0"
+version = "0.2.1"
 description = "Generic WebSocket-to-stdio bridge for MCP servers behind NAT"
 requires-python = ">=3.11"
 authors = [{ name = "Peter Danenberg" }]
 
 dependencies = [
     "websockets>=14.0",
+    # Verify the gateway with the OS trust store, not the interpreter's
+    # (see bridge._tls_context).
+    "truststore>=0.10",
 ]
 
 [project.scripts]

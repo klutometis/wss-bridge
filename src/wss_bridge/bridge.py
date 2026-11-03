@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import signal
+import ssl
 import sys
 from typing import Sequence
 
@@ -69,6 +70,28 @@ async def _pump_stderr(proc: asyncio.subprocess.Process) -> None:
         sys.stderr.flush()
 
 
+def _tls_context(wss_url: str) -> ssl.SSLContext | None:
+    """Verify the gateway's certificate with the operating system's trust store.
+
+    Python's own default depends on the interpreter: a python.org build on
+    macOS trusts nothing until its "Install Certificates" step has run, and
+    any build obeys an SSL_CERT_FILE left pointing at the wrong bundle. Both
+    fail as "unable to get local issuer certificate" while curl and Chrome on
+    the same Mac connect fine (Krish, 2026-11-02). truststore asks macOS
+    (Keychain), Windows or the Linux system store instead, so the bridge
+    trusts exactly what the rest of the machine trusts, MDM-installed roots
+    included.
+    """
+    if not wss_url.startswith("wss://"):
+        return None
+    try:
+        import truststore
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except Exception as e:  # missing or unusable: fall back to Python's defaults
+        log.warning("OS trust store unavailable (%s); using Python's certificate defaults", e)
+        return ssl.create_default_context()
+
+
 async def _run_once(
     wss_url: str,
     token: str,
@@ -81,6 +104,7 @@ async def _run_once(
     # websockets >=14 renamed extra_headers -> additional_headers
     async with ws_connect(
         wss_url,
+        ssl=_tls_context(wss_url),
         subprotocols=[Subprotocol("mcp")],
         additional_headers=extra_headers,
         ping_interval=20,
@@ -177,6 +201,14 @@ async def run(
                 e.response.status_code, max_backoff,
             )
             await asyncio.sleep(max_backoff)
+        except ssl.SSLCertVerificationError as e:
+            # Not transient: retrying won't fix a trust problem. Say what to
+            # check, then keep trying (the user may fix it underneath us).
+            log.error("TLS certificate check failed for %s: %s. This machine doesn't "
+                      "trust the gateway's certificate; is a proxy or VPN intercepting "
+                      "HTTPS? Retrying in %.1fs", wss_url, e.verify_message or e, backoff)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
         except Exception as e:
             log.warning("bridge cycle failed: %s; reconnecting in %.1fs",
                         type(e).__name__ + ": " + str(e), backoff)
